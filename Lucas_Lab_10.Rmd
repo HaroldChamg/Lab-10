@@ -1,0 +1,86 @@
+---
+title: "Lucas Lab 10"
+author: "Lucas Brack"
+date: "March 20, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(tidyverse)
+library(stringr)
+library(lubridate)
+questions <- read.csv("Questions_trunc.csv")%>%select(-X)
+view(questions)
+
+answers <- read.csv("Answers_trunc.csv")%>%select(-X)
+view(answers)
+
+q_and_a <- questions%>%
+  left_join(answers,by="OwnerUserId")
+view(q_and_a)
+
+```
+#Team Portion
+
+```{r,results="hide", warning=F}
+q_and_a <- questions%>%
+  left_join(answers, by=c("Id"="ParentId"))%>%
+  select(OwnerUserId.x, Score.y, CreationDate.x, CreationDate.y)%>%
+  separate(CreationDate.y, into=c("date_a", "time_a"), sep="T" )%>%separate(time_a, into=c("time_a"), sep="Z" )%>%
+  separate(CreationDate.x, into=c("date_q", "time_q"), sep="T" )%>%separate(time_q, into=c("time_q"), sep="Z" )%>%
+  unite(Date_q,date_q,time_q)%>%
+  unite(Date_a,date_a,time_a)%>%
+  mutate(Date_q = ymd_hms(Date_q))%>%
+  mutate(Date_a = ymd_hms(Date_a))%>%
+  mutate(Diff=(as.duration(interval(Date_q,Date_a))))%>%
+  select(Score.y,Diff)%>%
+  separate(Diff, into=c("Diff"), sep="s")%>%
+  mutate(Diff=as.double(Diff)/(60*24))
+view(q_and_a)
+```
+
+```{r,warning=F}
+ggplot(data=q_and_a)+
+  geom_jitter(mapping=aes(x=Diff,y=Score.y))+
+  labs(title="Scores Decrease the Longer after the Question was Posted", x="Time since question was posted", y="Answer Score")+
+  xlim(0,10000)+
+  ylim(0,3000)
+  
+```
+As shown in the graph above, generally the longer after a answer is given, the lower the score is. This is because less people are likely to see this answer because it is so long after the question is asked that is has probably already been answered, so it isn't useful to have more answers to the person who asked the question.
+#Individual
+##Do Questions with "Python" in the title score higher than those without Python in the title?
+```{r}
+qs_no_python<-questions%>%
+  filter(!str_detect(Title,pattern="python"))%>%
+  select(Score)%>%
+  summarize(mean(Score))
+qs_no_python
+
+qs_with_python<-questions%>%
+  filter(str_detect(Title,pattern="python"))%>%
+  select(Score)%>%
+  summarize(mean(Score))
+qs_with_python
+```
+Questions that say "Python" by name in the title score almost half the point compared to questions that do not mention Python by name. One possible reason for this is the questions are really simple beginners question that could easily be answered with a Google search, so there is no need to post it on the forum, so people don't up vote.
+
+##Do answers with code get better scores?
+```{r, include=TRUE}
+answers_no_code<-answers%>%
+  filter(!str_detect(Body,pattern="<code>"))%>%
+  select(Score)%>%
+  summarize(mean(Score))
+answers_no_code
+
+answers_with_code<-answers%>%
+  filter(str_detect(Body,pattern="<code>"))%>%
+  select(Score)%>%
+  summarize(mean(Score))
+answers_with_code
+```
+As shown by the average scores, answers with actual chunks of code in them score over 4 times higher than those without code in them. This is most likely because it is more helpful to see an answer that just have it explained to you through text, so people like these answers better.
+
+
+The features I choose where whether Pyton was mentioned by name in the question, and whether there was code in the answer. Having Python by name in the title lowered the score by almost half, and having code in the answer increased the score by a factor 4.
